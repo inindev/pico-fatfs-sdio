@@ -1,6 +1,6 @@
 // Driver for accessing SD card in SDIO mode on RP2040.
 
-#include "ZuluSCSI_platform.h"
+#include "SdioCard.h"
 
 #include <stdint.h>
 #include <string.h>

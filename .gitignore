@@ -1,11 +1,48 @@
-**/build
-**/cppcheck_project-cppcheck-build-dir
-*.html
-*.png
-*.zip
-*.xlsx
-*.bak
-**/.vscode
-*.tar.gz
-PlatformIO.notes.txt
-examples/command_line/cppcheck_project.cppcheck
+# Build directories
+build*/
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Pico SDK build artifacts
+*.elf
+*.bin
+*.hex
+*.uf2
+*.map
+*.dis
+*.lst
+
+# Object files
+*.o
+*.a
+*.d
+*.su
+
+# Pico SDK tools
+pioasm/
+elf2uf2/
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Generated files
+generated/
+*.pyc
+__pycache__/
+
+# Patch files
+*.patch
+
+# Debug files
+*.dSYM/

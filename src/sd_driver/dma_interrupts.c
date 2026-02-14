@@ -1,4 +1,5 @@
 
+#include <hardware/dma.h>
 #include "hw_config.h"
 #include "sd_card.h"
 //

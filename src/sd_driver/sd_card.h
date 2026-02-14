@@ -29,8 +29,6 @@ specific language governing permissions and limitations under the License.
 #include "ff.h"
 //
 #include "SDIO/rp2040_sdio.h"
-#include "SPI/my_spi.h"
-#include "SPI/sd_card_spi.h"
 #include "diskio.h"
 #include "sd_card_constants.h"
 #include "sd_regs.h"
@@ -40,27 +38,7 @@ specific language governing permissions and limitations under the License.
 extern "C" {
 #endif
 
-typedef enum { SD_IF_NONE, SD_IF_SPI, SD_IF_SDIO } sd_if_t;
-
-typedef struct sd_spi_if_state_t {
-    bool ongoing_mlt_blk_wrt;
-    uint32_t cont_sector_wrt;
-    uint32_t n_wrt_blks_reqd;
-} sd_spi_if_state_t;
-
-typedef struct sd_spi_if_t {
-    spi_t *spi;
-    // Slave select is here instead of in spi_t because multiple SDs can share an SPI.
-    uint ss_gpio;  // Slave select for this SD card
-    // Drive strength levels for GPIO outputs:
-    // GPIO_DRIVE_STRENGTH_2MA
-    // GPIO_DRIVE_STRENGTH_4MA
-    // GPIO_DRIVE_STRENGTH_8MA
-    // GPIO_DRIVE_STRENGTH_12MA
-    bool set_drive_strength;
-    enum gpio_drive_strength ss_gpio_drive_strength;
-    sd_spi_if_state_t state;
-} sd_spi_if_t;
+typedef enum { SD_IF_NONE, SD_IF_SDIO } sd_if_t;
 
 typedef struct sd_sdio_if_t {
     // See sd_driver\SDIO\rp2040_sdio.pio for SDIO_CLK_PIN_D0_OFFSET
@@ -114,10 +92,7 @@ typedef struct sd_card_t sd_card_t;
 // "Class" representing SD Cards
 struct sd_card_t {
     sd_if_t type;  // Interface type
-    union {
-        sd_spi_if_t *spi_if_p;
-        sd_sdio_if_t *sdio_if_p;
-    };
+    sd_sdio_if_t *sdio_if_p;
     bool use_card_detect;
     uint card_detect_gpio;    // Card detect; ignored if !use_card_detect
     uint card_detected_true;  // Varies with card socket; ignored if !use_card_detect

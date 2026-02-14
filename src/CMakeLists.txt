@@ -16,14 +16,9 @@ target_sources(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/sd_driver/sd_timeouts.c
     ${CMAKE_CURRENT_LIST_DIR}/sd_driver/SDIO/rp2040_sdio.c
     ${CMAKE_CURRENT_LIST_DIR}/sd_driver/SDIO/sd_card_sdio.c
-    ${CMAKE_CURRENT_LIST_DIR}/sd_driver/SPI/my_spi.c
-    ${CMAKE_CURRENT_LIST_DIR}/sd_driver/SPI/sd_card_spi.c
-    ${CMAKE_CURRENT_LIST_DIR}/sd_driver/SPI/sd_spi.c
     ${CMAKE_CURRENT_LIST_DIR}/src/crash.c
     ${CMAKE_CURRENT_LIST_DIR}/src/crc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/f_util.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/ff_stdio.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/file_stream.c
     ${CMAKE_CURRENT_LIST_DIR}/src/glue.c
     ${CMAKE_CURRENT_LIST_DIR}/src/my_debug.c
     ${CMAKE_CURRENT_LIST_DIR}/src/my_rtc.c
@@ -44,7 +39,6 @@ endif()
 target_link_libraries(no-OS-FatFS-SD-SDIO-SPI-RPi-Pico INTERFACE
     hardware_dma
     hardware_pio
-    hardware_spi
     hardware_sync
     pico_aon_timer
     pico_stdlib
