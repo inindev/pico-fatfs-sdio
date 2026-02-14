@@ -230,8 +230,9 @@ uint32_t sd_sdio_errorLine(sd_card_t *sd_card_p) // const
 
 bool sd_sdio_isBusy(sd_card_t *sd_card_p) 
 {
-    // return (sio_hw->gpio_in & (1 << SDIO_D0)) == 0;
-    return (sio_hw->gpio_in & (1 << sd_card_p->sdio_if_p->D0_gpio)) == 0;
+    /* Use gpio_get() instead of direct sio_hw->gpio_in access so that
+       GPIOs above 31 (RP2350B) are handled correctly. */
+    return !gpio_get(sd_card_p->sdio_if_p->D0_gpio);
 }
 
 bool sd_sdio_readOCR(sd_card_t *sd_card_p, uint32_t* ocr)
@@ -550,13 +551,15 @@ static DSTATUS sd_sdio_init(sd_card_t *sd_card_p) {
     // Initialize the member variables
     sd_card_p->state.card_type = SDCARD_NONE;
 
-    //        pin                             function        pup   pdown  out    state
-    gpio_conf(sd_card_p->sdio_if_p->CLK_gpio, GPIO_FUNC_PIO1, true, false, true,  true);
-    gpio_conf(sd_card_p->sdio_if_p->CMD_gpio, GPIO_FUNC_PIO1, true, false, true,  true);
-    gpio_conf(sd_card_p->sdio_if_p->D0_gpio,  GPIO_FUNC_PIO1, true, false, false, true);
-    gpio_conf(sd_card_p->sdio_if_p->D1_gpio,  GPIO_FUNC_PIO1, true, false, false, true);
-    gpio_conf(sd_card_p->sdio_if_p->D2_gpio,  GPIO_FUNC_PIO1, true, false, false, true);
-    gpio_conf(sd_card_p->sdio_if_p->D3_gpio,  GPIO_FUNC_PIO1, true, false, false, true);
+    gpio_function_t fn = (pio1 == sd_card_p->sdio_if_p->SDIO_PIO)
+                             ? GPIO_FUNC_PIO1 : GPIO_FUNC_PIO0;
+    //        pin                             function  pup   pdown  out    state
+    gpio_conf(sd_card_p->sdio_if_p->CLK_gpio, fn,      true, false, true,  true);
+    gpio_conf(sd_card_p->sdio_if_p->CMD_gpio, fn,      true, false, true,  true);
+    gpio_conf(sd_card_p->sdio_if_p->D0_gpio,  fn,      true, false, false, true);
+    gpio_conf(sd_card_p->sdio_if_p->D1_gpio,  fn,      true, false, false, true);
+    gpio_conf(sd_card_p->sdio_if_p->D2_gpio,  fn,      true, false, false, true);
+    gpio_conf(sd_card_p->sdio_if_p->D3_gpio,  fn,      true, false, false, true);
 
     bool ok = sd_sdio_begin(sd_card_p);
     if (ok) {
@@ -647,7 +650,13 @@ void sd_sdio_ctor(sd_card_t *sd_card_p) {
     myASSERT(!sd_card_p->sdio_if_p->D2_gpio);
     myASSERT(!sd_card_p->sdio_if_p->D3_gpio);
 
-    sd_card_p->sdio_if_p->CLK_gpio = (sd_card_p->sdio_if_p->D0_gpio + SDIO_CLK_PIN_D0_OFFSET) % 32;
+    /* RP2350B: GPIOs 32-47 require pio_set_gpio_base(pio, 16), which shifts the
+       PIO's 32-pin window.  The CLK offset (SDIO_CLK_PIN_D0_OFFSET = 30, i.e. -2
+       mod 32) is relative to D0 within that window, so we must do the modular
+       arithmetic in PIO-pin space, then add back the base. */
+    uint gpio_base = (sd_card_p->sdio_if_p->D0_gpio >= 32) ? 16 : 0;
+    sd_card_p->sdio_if_p->CLK_gpio = gpio_base +
+        ((sd_card_p->sdio_if_p->D0_gpio - gpio_base + SDIO_CLK_PIN_D0_OFFSET) % 32);
     sd_card_p->sdio_if_p->D1_gpio = sd_card_p->sdio_if_p->D0_gpio + 1;
     sd_card_p->sdio_if_p->D2_gpio = sd_card_p->sdio_if_p->D0_gpio + 2;
     sd_card_p->sdio_if_p->D3_gpio = sd_card_p->sdio_if_p->D0_gpio + 3;
