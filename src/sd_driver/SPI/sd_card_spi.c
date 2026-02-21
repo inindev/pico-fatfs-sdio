@@ -1624,6 +1624,13 @@ DSTATUS sd_card_spi_init(sd_card_t *sd_card_p) {
     // Initialize the member variables
     sd_card_p->state.card_type = SDCARD_NONE;
 
+    // Re-initialize the CS pin (deinit may have reverted it to input)
+    if ((uint)-1 != sd_card_p->spi_if_p->ss_gpio) {
+        gpio_init(sd_card_p->spi_if_p->ss_gpio);
+        gpio_put(sd_card_p->spi_if_p->ss_gpio, 1);
+        gpio_set_dir(sd_card_p->spi_if_p->ss_gpio, GPIO_OUT);
+    }
+
     // Acquire the SD card
     sd_spi_acquire(sd_card_p);
 
