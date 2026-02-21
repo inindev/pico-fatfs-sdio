@@ -22,7 +22,8 @@ specific language governing permissions and limitations under the License.
 #include "pico/mutex.h"
 //
 #include "SDIO/SdioCard.h"
-#include "hw_config.h"
+#include "SPI/sd_card_spi.h"
+#include "hw_config.h"  // Hardware Configuration of the SPI and SD Card "objects"
 #include "my_debug.h"
 #include "sd_card_constants.h"
 #include "sd_regs.h"
@@ -153,9 +154,38 @@ bool sd_init_driver() {
                 gpio_init(sd_card_p->card_detect_gpio);
             }
 
-            myASSERT(SD_IF_SDIO == sd_card_p->type);
-            myASSERT(sd_card_p->sdio_if_p);
-            sd_sdio_ctor(sd_card_p);
+            switch (sd_card_p->type) {
+                case SD_IF_NONE:
+                    myASSERT(false);
+                    break;
+                case SD_IF_SPI:
+                    myASSERT(sd_card_p->spi_if_p);  // Must have an interface object
+                    myASSERT(sd_card_p->spi_if_p->spi);
+                    sd_spi_ctor(sd_card_p);
+                    if (!my_spi_init(sd_card_p->spi_if_p->spi)) {
+                        ok = false;
+                    }
+                    /* At power up the SD card CD/DAT3 / CS  line has a 50KOhm pull up enabled
+                     * in the card. This resistor serves two functions Card detection and Mode
+                     * Selection. For Mode Selection, the host can drive the line high or let it
+                     * be pulled high to select SD mode. If the host wants to select SPI mode it
+                     * should drive the line low.
+                     *
+                     * There is an important thing needs to be considered that the MMC/SDC is
+                     * initially NOT the SPI device. Some bus activity to access another SPI
+                     * device can cause a bus conflict due to an accidental response of the
+                     * MMC/SDC. Therefore the MMC/SDC should be initialized to put it into the
+                     * SPI mode prior to access any other device attached to the same SPI bus.
+                     */
+                    sd_go_idle_state(sd_card_p);
+                    break;
+                case SD_IF_SDIO:
+                    myASSERT(sd_card_p->sdio_if_p);
+                    sd_sdio_ctor(sd_card_p);
+                    break;
+                default:
+                    myASSERT(false);
+            }  // switch (sd_card_p->type)
 
             sd_unlock(sd_card_p);
         }  // for
@@ -290,6 +320,8 @@ void csdDmp(sd_card_t *sd_card_p, printer_t printer) {
 is a physical boundary of the card and consists of one or more blocks and its
 size depends on each card. */
 bool sd_allocation_unit(sd_card_t *sd_card_p, size_t *au_size_bytes_p) {
+    if (SD_IF_SPI == sd_card_p->type) return false;  // SPI can't do full SD Status
+
     uint8_t status[64] = {0};
     bool ok = rp2040_sdio_get_sd_status(sd_card_p, status);
     if (!ok) return false;
