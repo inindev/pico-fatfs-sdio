@@ -40,6 +40,14 @@ DSTATUS disk_status(BYTE pdrv /* Physical drive number to identify the drive */
     sd_card_t *sd_card_p = sd_get_by_num(pdrv);
     if (!sd_card_p) return RES_PARERR;
     sd_card_detect(sd_card_p);   // Fast: just a GPIO read
+#if FF_MEDIA_CHANGE_DETECT
+    // If card is initialized, verify it is still the same card.
+    // A removed or swapped card will not respond to CMD13, causing
+    // STA_NOINIT to be set.  FatFS mount_volume() will then
+    // automatically reinitialize and remount on the next access.
+    if (sd_card_p->sd_card_changed)
+        sd_card_p->sd_card_changed(sd_card_p);
+#endif
     return sd_card_p->state.m_Status;  // See http://elm-chan.org/fsw/ff/doc/dstat.html
 }
 

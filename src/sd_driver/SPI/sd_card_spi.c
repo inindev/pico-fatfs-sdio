@@ -1682,6 +1682,7 @@ DSTATUS sd_card_spi_init(sd_card_t *sd_card_p) {
 
     // The card is now initialized
     sd_card_p->state.m_Status &= ~STA_NOINIT;
+    sd_card_p->state.last_psn = ext_bits16(sd_card_p->state.CID, 55, 24);
 
     // Release the SD card
     sd_release(sd_card_p);
@@ -1720,6 +1721,28 @@ static void sd_deinit(sd_card_t *sd_card_p) {
  *
  * @param sd_card_p Pointer to the sd_card_t structure to be initialized.
  */
+#if FF_MEDIA_CHANGE_DETECT
+// Check if the SD card was removed or swapped.
+// Sends CMD13 (SEND_STATUS) over SPI -- a removed or swapped card
+// will not respond.
+static bool sd_spi_card_changed(sd_card_t *sd_card_p) {
+    if (sd_card_p->state.m_Status & STA_NOINIT)
+        return false;  // Already flagged as needing reinit
+    sd_acquire(sd_card_p);
+    bool changed = false;
+    if (sd_wait_ready(sd_card_p, 0)) {
+        uint8_t response = sd_cmd_spi(sd_card_p, CMD13_SEND_STATUS, 0);
+        if (R1_NO_RESPONSE == response) {
+            sd_card_p->state.m_Status |= STA_NOINIT;
+            sd_card_p->state.card_type = SDCARD_NONE;
+            changed = true;
+        }
+    }
+    sd_release(sd_card_p);
+    return changed;
+}
+#endif
+
 void sd_spi_ctor(sd_card_t *sd_card_p) {
     sd_card_p->write_blocks = sd_write_blocks;
     sd_card_p->read_blocks = sd_read_blocks;
@@ -1728,6 +1751,9 @@ void sd_spi_ctor(sd_card_t *sd_card_p) {
     sd_card_p->deinit = sd_deinit;
     sd_card_p->get_num_sectors = sd_spi_sectors;
     sd_card_p->sd_test_com = sd_spi_test_com;
+#if FF_MEDIA_CHANGE_DETECT
+    sd_card_p->sd_card_changed = sd_spi_card_changed;
+#endif
 
     // Chip select is active-low, so we'll initialise it to a
     // driven-high state.

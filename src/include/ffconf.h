@@ -227,6 +227,12 @@
 /  disk_ioctl() function. */
 
 
+#define FF_MEDIA_CHANGE_DETECT	1
+/* This option enables automatic SD card change detection. (0:Disable or 1:Enable)
+/  When enabled, each file operation sends CMD13 to verify the card is still
+/  present. If the card was removed or swapped, the volume is automatically
+/  reinitialized and remounted on the next access. */
+
 
 /*---------------------------------------------------------------------------/
 / System Configurations

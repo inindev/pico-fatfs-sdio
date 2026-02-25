@@ -566,10 +566,32 @@ static DSTATUS sd_sdio_init(sd_card_t *sd_card_p) {
     if (ok) {
         // The card is now initialized
         sd_card_p->state.m_Status &= ~STA_NOINIT;
+        sd_card_p->state.last_psn = ext_bits16(sd_card_p->state.CID, 55, 24);
     }
     sd_unlock(sd_card_p);
     return sd_card_p->state.m_Status;
 }
+
+#if FF_MEDIA_CHANGE_DETECT
+// Check if the SD card was removed or swapped.
+// Sends CMD13 (SEND_STATUS) which only succeeds if the same card
+// is still present and in transfer state with the assigned RCA.
+// A removed or newly inserted card will not respond.
+static bool sd_sdio_card_changed(sd_card_t *sd_card_p) {
+    if (sd_card_p->state.m_Status & STA_NOINIT)
+        return false;  // Already flagged as needing reinit
+    uint32_t reply = 0;
+    sdio_status_t status = rp2040_sdio_command_R1(
+        sd_card_p, CMD13_SEND_STATUS, STATE.rca, &reply);
+    if (status != SDIO_OK) {
+        sd_card_p->state.m_Status |= STA_NOINIT;
+        sd_card_p->state.card_type = SDCARD_NONE;
+        return true;
+    }
+    return false;
+}
+#endif
+
 static void sd_sdio_deinit(sd_card_t *sd_card_p) {
     sd_lock(sd_card_p);
 
@@ -671,4 +693,7 @@ void sd_sdio_ctor(sd_card_t *sd_card_p) {
     sd_card_p->sync = sd_sync;
     sd_card_p->get_num_sectors = sd_sdio_sectorCount;
     sd_card_p->sd_test_com = sd_sdio_test_com;
+#if FF_MEDIA_CHANGE_DETECT
+    sd_card_p->sd_card_changed = sd_sdio_card_changed;
+#endif
 }

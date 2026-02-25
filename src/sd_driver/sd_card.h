@@ -98,6 +98,7 @@ typedef struct sd_card_state_t {
     CSD_t CSD;              // Card-Specific Data register.
     CID_t CID;              // Card IDentification register
     uint32_t sectors;       // Assigned dynamically
+    uint32_t last_psn;      // Product Serial Number from CID, saved after init
 
     mutex_t mutex;
     FATFS fatfs;
@@ -140,6 +141,10 @@ struct sd_card_t {
     // Useful when use_card_detect is false - call periodically to check for presence of SD card
     // Returns true if and only if SD card was sensed on the bus
     bool (*sd_test_com)(sd_card_t *sd_card_p);
+
+    // Returns true if media was removed or swapped. Sets STA_NOINIT.
+    // Unlike sd_test_com, does NOT attempt any reinitialization.
+    bool (*sd_card_changed)(sd_card_t *sd_card_p);
 };
 
 void sd_lock(sd_card_t *sd_card_p);
