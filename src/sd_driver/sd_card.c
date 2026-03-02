@@ -23,6 +23,7 @@ specific language governing permissions and limitations under the License.
 //
 #include "SDIO/SdioCard.h"
 #include "SPI/sd_card_spi.h"
+#include "delays.h"
 #include "hw_config.h"  // Hardware Configuration of the SPI and SD Card "objects"
 #include "my_debug.h"
 #include "sd_card_constants.h"
@@ -73,26 +74,23 @@ sd_card_t *sd_get_by_drive_prefix(const char *const drive_prefix) {
     return NULL;
 }
 
-/* Return non-zero if the SD-card is present. */
+/* Return true if the SD card is present (direct GPIO read). */
 bool sd_card_detect(sd_card_t *sd_card_p) {
-    TRACE_PRINTF("> %s\r\n", __FUNCTION__);
     if (!sd_card_p->use_card_detect) {
         sd_card_p->state.m_Status &= ~STA_NODISK;
         return true;
     }
-    /*!< Check GPIO to detect SD */
     if (gpio_get(sd_card_p->card_detect_gpio) == sd_card_p->card_detected_true) {
-        // The socket is now occupied
         sd_card_p->state.m_Status &= ~STA_NODISK;
-        TRACE_PRINTF("SD card detected!\r\n");
         return true;
-    } else {
-        // The socket is now empty
-        sd_card_p->state.m_Status |= (STA_NODISK | STA_NOINIT);
-        sd_card_p->state.card_type = SDCARD_NONE;
-        EMSG_PRINTF("No SD card detected!\r\n");
-        return false;
     }
+    // Card absent -- tear down if initialized
+    if (!(sd_card_p->state.m_Status & STA_NOINIT)) {
+        sd_card_p->deinit(sd_card_p);
+    }
+    sd_card_p->state.m_Status |= (STA_NODISK | STA_NOINIT);
+    sd_card_p->state.card_type = SDCARD_NONE;
+    return false;
 }
 
 void sd_set_drive_prefix(sd_card_t *sd_card_p, size_t phy_drv_num) {

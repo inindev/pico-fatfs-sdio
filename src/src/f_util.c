@@ -60,6 +60,8 @@ const char *FRESULT_str(FRESULT i) {
             return "Number of open files > FF_FS_LOCK";
         case FR_INVALID_PARAMETER:
             return "Given parameter is invalid";
+        case FR_NO_MEDIA:
+            return "No media present in the drive";
         default:
             return "Unknown";
     }

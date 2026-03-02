@@ -25,6 +25,13 @@ This is a trimmed fork of carlk3's [no-OS-FatFS-SD-SDIO-SPI-RPi-Pico](https://gi
 
 These patches are backward-compatible with RP2040.
 
+4. **Card detect debounce and fail-fast** — when a card detect GPIO is
+   configured, the driver now debounces the signal (200 ms default,
+   override with `SD_CARD_DETECT_DEBOUNCE_MS`) and tears down the
+   interface on removal (SDIO: stops PIO clock and aborts DMA; SPI:
+   releases CS).  `disk_read`, `disk_write`, and `disk_ioctl` fail fast
+   via GPIO check—no bus timeout.
+
 ## Directory structure
 
 ```
@@ -122,7 +129,7 @@ sd_card_t *sd_get_by_num(size_t num) {
 
 ## Hardware resources
 
-**SDIO:** One PIO instance, one state machine, and two DMA channels. The PIO program is loaded into instruction memory at init time. On RP2350B with GPIOs >= 32, the driver calls `pio_set_gpio_base()` to shift the PIO GPIO window.
+**SDIO:** One PIO instance, two state machines (CMD/CLK and DATA), and two DMA channels. Three PIO programs are loaded into instruction memory at init time. On RP2350B with GPIOs >= 32, the driver calls `pio_set_gpio_base()` to shift the PIO GPIO window. When card detect is configured, PIO state machines are disabled and DMA is aborted on card removal.
 
 **SPI:** One SPI peripheral (spi0 or spi1) and two DMA channels for full-duplex transfers.
 

@@ -486,6 +486,10 @@ bool rp2040_sdio_get_sd_status(sd_card_t *sd_card_p, uint8_t response[64]) {
 }
 
 static bool sd_sdio_test_com(sd_card_t *sd_card_p) {
+    // If card detect GPIO says absent, no need to probe the bus
+    if (sd_card_p->use_card_detect && !sd_card_detect(sd_card_p))
+        return false;
+
     bool success = false;
 
     if (!(sd_card_p->state.m_Status & STA_NOINIT)) {
@@ -580,6 +584,10 @@ static DSTATUS sd_sdio_init(sd_card_t *sd_card_p) {
 static bool sd_sdio_card_changed(sd_card_t *sd_card_p) {
     if (sd_card_p->state.m_Status & STA_NOINIT)
         return false;  // Already flagged as needing reinit
+    // If card detect GPIO says absent, skip the bus transaction
+    if (sd_card_p->use_card_detect && !sd_card_detect(sd_card_p)) {
+        return true;  // sd_card_detect() already set STA_NOINIT/STA_NODISK
+    }
     uint32_t reply = 0;
     sdio_status_t status = rp2040_sdio_command_R1(
         sd_card_p, CMD13_SEND_STATUS, STATE.rca, &reply);
@@ -598,6 +606,17 @@ static void sd_sdio_deinit(sd_card_t *sd_card_p) {
     sd_card_p->state.m_Status |= STA_NOINIT;
     sd_card_p->state.card_type = SDCARD_NONE;
 
+    // Stop PIO state machines (stops SDIO clock from toggling)
+    // and abort any in-flight DMA transfers.
+    // Resources (SMs, DMA channels) remain claimed so that
+    // rp2040_sdio_init() can reconfigure them on reinsertion.
+    if (STATE.resources_claimed) {
+        dma_channel_abort(STATE.SDIO_DMA_CH);
+        dma_channel_abort(STATE.SDIO_DMA_CHB);
+        pio_sm_set_enabled(sd_card_p->sdio_if_p->SDIO_PIO, STATE.SDIO_CMD_SM, false);
+        pio_sm_set_enabled(sd_card_p->sdio_if_p->SDIO_PIO, STATE.SDIO_DATA_SM, false);
+    }
+
     //        pin                             function        pup   pdown   out    state
     gpio_conf(sd_card_p->sdio_if_p->CLK_gpio, GPIO_FUNC_NULL, false, false, false, false);
     gpio_conf(sd_card_p->sdio_if_p->CMD_gpio, GPIO_FUNC_NULL, false, false, false, false);
@@ -606,19 +625,20 @@ static void sd_sdio_deinit(sd_card_t *sd_card_p) {
     gpio_conf(sd_card_p->sdio_if_p->D2_gpio,  GPIO_FUNC_NULL, false, false, false, false);
     gpio_conf(sd_card_p->sdio_if_p->D3_gpio,  GPIO_FUNC_NULL, false, false, false, false);
 
-    //TODO: free other resources: PIO, SMs, etc.
-
-    sd_unlock(sd_card_p);    
+    sd_unlock(sd_card_p);
 }
 
 uint32_t sd_sdio_sectorCount(sd_card_t *sd_card_p) {
-    myASSERT(!(sd_card_p->state.m_Status & STA_NOINIT));
+    if (sd_card_p->state.m_Status & (STA_NOINIT | STA_NODISK))
+        return 0;
     return CSD_sectors(sd_card_p->state.CSD);
 }
 
 static block_dev_err_t sd_sdio_write_blocks(sd_card_t *sd_card_p, const uint8_t *buffer, uint32_t ulSectorNumber,
                                             uint32_t blockCnt) {
     TRACE_PRINTF("%s(,,,%zu)\n", __func__, blockCnt);
+    if (sd_card_p->state.m_Status & (STA_NOINIT | STA_NODISK))
+        return SD_BLOCK_DEVICE_ERROR_NO_DEVICE;
     bool ok = true;
 
     sd_lock(sd_card_p);
@@ -637,6 +657,8 @@ static block_dev_err_t sd_sdio_write_blocks(sd_card_t *sd_card_p, const uint8_t 
 }
 static block_dev_err_t sd_sdio_read_blocks(sd_card_t *sd_card_p, uint8_t *buffer, uint32_t ulSectorNumber,
                                            uint32_t ulSectorCount) {
+    if (sd_card_p->state.m_Status & (STA_NOINIT | STA_NODISK))
+        return SD_BLOCK_DEVICE_ERROR_NO_DEVICE;
     bool ok = true;
 
     sd_lock(sd_card_p);

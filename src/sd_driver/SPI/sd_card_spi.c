@@ -1519,6 +1519,10 @@ static block_dev_err_t sd_init_medium(sd_card_t *sd_card_p) {
  * @return `true` if the communication with the SD card is successful, `false` otherwise.
  */
 static bool sd_spi_test_com(sd_card_t *sd_card_p) {
+    // If card detect GPIO says absent, no need to probe the bus
+    if (sd_card_p->use_card_detect && !sd_card_detect(sd_card_p))
+        return false;
+
     // This is allowed to be called before initialization, so ensure mutex is created
     if (!mutex_is_initialized(&sd_card_p->state.mutex)) mutex_init(&sd_card_p->state.mutex);
 
@@ -1728,6 +1732,10 @@ static void sd_deinit(sd_card_t *sd_card_p) {
 static bool sd_spi_card_changed(sd_card_t *sd_card_p) {
     if (sd_card_p->state.m_Status & STA_NOINIT)
         return false;  // Already flagged as needing reinit
+    // If card detect GPIO says absent, skip the bus transaction
+    if (sd_card_p->use_card_detect && !sd_card_detect(sd_card_p)) {
+        return true;  // sd_card_detect() already set STA_NOINIT/STA_NODISK
+    }
     sd_acquire(sd_card_p);
     bool changed = false;
     if (sd_wait_ready(sd_card_p, 0)) {

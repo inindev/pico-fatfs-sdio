@@ -3500,8 +3500,11 @@ static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 
 	fs->fs_type = 0;					/* Invalidate the filesystem object */
 	stat = disk_initialize(fs->pdrv);	/* Initialize the volume hosting physical drive */
+	if (stat & STA_NODISK) {			/* No media in drive (card detect GPIO) */
+		return FR_NO_MEDIA;
+	}
 	if (stat & STA_NOINIT) { 			/* Check if the initialization succeeded */
-		return FR_NOT_READY;			/* Failed to initialize due to no medium or hard error */
+		return FR_NOT_READY;			/* Failed to initialize due to hard error */
 	}
 	if (!FF_FS_READONLY && mode && (stat & STA_PROTECT)) { /* Check disk write protection if needed */
 		return FR_WRITE_PROTECTED;
@@ -3703,7 +3706,11 @@ static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 	if (obj && obj->fs && obj->fs->fs_type && obj->id == obj->fs->id) {	/* Test if the object is valid */
 #if FF_FS_REENTRANT
 		if (lock_volume(obj->fs, 0)) {	/* Take a grant to access the volume */
-			if (!(disk_status(obj->fs->pdrv) & STA_NOINIT)) { /* Test if the hosting physical drive is kept initialized */
+			DSTATUS ds = disk_status(obj->fs->pdrv);
+			if (ds & STA_NODISK) {
+				res = FR_NO_MEDIA;
+				unlock_volume(obj->fs, FR_OK);
+			} else if (!(ds & STA_NOINIT)) { /* Test if the hosting physical drive is kept initialized */
 				res = FR_OK;
 			} else {
 				unlock_volume(obj->fs, FR_OK);	/* Invalidated volume, abort to access */
@@ -3712,8 +3719,13 @@ static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 			res = FR_TIMEOUT;
 		}
 #else
-		if (!(disk_status(obj->fs->pdrv) & STA_NOINIT)) { /* Test if the hosting physical drive is kept initialized */
-			res = FR_OK;
+		{
+			DSTATUS ds = disk_status(obj->fs->pdrv);
+			if (ds & STA_NODISK) {
+				res = FR_NO_MEDIA;
+			} else if (!(ds & STA_NOINIT)) { /* Test if the hosting physical drive is kept initialized */
+				res = FR_OK;
+			}
 		}
 #endif
 	}
@@ -6073,6 +6085,7 @@ FRESULT f_mkfs (
 
 	/* Initialize the hosting physical drive */
 	ds = disk_initialize(pdrv);
+	if (ds & STA_NODISK) return FR_NO_MEDIA;
 	if (ds & STA_NOINIT) return FR_NOT_READY;
 	if (ds & STA_PROTECT) return FR_WRITE_PROTECTED;
 
@@ -6558,6 +6571,7 @@ FRESULT f_fdisk (
 
 	/* Initialize the physical drive */
 	stat = disk_initialize(pdrv);
+	if (stat & STA_NODISK) return FR_NO_MEDIA;
 	if (stat & STA_NOINIT) return FR_NOT_READY;
 	if (stat & STA_PROTECT) return FR_WRITE_PROTECTED;
 
