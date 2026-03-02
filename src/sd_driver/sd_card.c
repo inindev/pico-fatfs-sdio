@@ -23,6 +23,7 @@ specific language governing permissions and limitations under the License.
 //
 #include "SDIO/SdioCard.h"
 #include "SPI/sd_card_spi.h"
+#include "delays.h"
 #include "hw_config.h"  // Hardware Configuration of the SPI and SD Card "objects"
 #include "my_debug.h"
 #include "sd_card_constants.h"
@@ -73,7 +74,16 @@ sd_card_t *sd_get_by_drive_prefix(const char *const drive_prefix) {
     return NULL;
 }
 
-/* Return non-zero if the SD-card is present. */
+/* Debounce interval for card detect GPIO (milliseconds).
+   The Linux kernel MMC subsystem uses 200 ms by default.
+   SD card sockets (push-push, sliding) can have contact travel
+   that spans tens to hundreds of milliseconds, well beyond
+   the ~5 ms of simple switch bounce. */
+#ifndef SD_CARD_DETECT_DEBOUNCE_MS
+#define SD_CARD_DETECT_DEBOUNCE_MS 200
+#endif
+
+/* Return non-zero if the SD-card is present (debounced). */
 bool sd_card_detect(sd_card_t *sd_card_p) {
     TRACE_PRINTF("> %s\r\n", __FUNCTION__);
     if (!sd_card_p->use_card_detect) {
@@ -81,18 +91,42 @@ bool sd_card_detect(sd_card_t *sd_card_p) {
         return true;
     }
     /*!< Check GPIO to detect SD */
-    if (gpio_get(sd_card_p->card_detect_gpio) == sd_card_p->card_detected_true) {
-        // The socket is now occupied
-        sd_card_p->state.m_Status &= ~STA_NODISK;
-        TRACE_PRINTF("SD card detected!\r\n");
-        return true;
+    bool raw_present =
+        (gpio_get(sd_card_p->card_detect_gpio) == sd_card_p->card_detected_true);
+
+    if (raw_present != sd_card_p->state.cd_debounced_present) {
+        // Raw reading disagrees with committed state
+        if (!sd_card_p->state.cd_debouncing) {
+            // First sample of a potential transition — start the debounce window
+            sd_card_p->state.cd_debouncing = true;
+            sd_card_p->state.cd_debounce_start = millis();
+        } else if (millis() - sd_card_p->state.cd_debounce_start >=
+                   SD_CARD_DETECT_DEBOUNCE_MS) {
+            // GPIO has been stable in the new state for the full debounce period
+            sd_card_p->state.cd_debouncing = false;
+            sd_card_p->state.cd_debounced_present = raw_present;
+
+            if (raw_present) {
+                // Card was just inserted
+                sd_card_p->state.m_Status &= ~STA_NODISK;
+                DBG_PRINTF("SD card detected\r\n");
+            } else {
+                // Card was just removed — tear down the interface
+                if (!(sd_card_p->state.m_Status & STA_NOINIT)) {
+                    sd_card_p->deinit(sd_card_p);
+                }
+                sd_card_p->state.m_Status |= (STA_NODISK | STA_NOINIT);
+                sd_card_p->state.card_type = SDCARD_NONE;
+                EMSG_PRINTF("SD card removed\r\n");
+            }
+        }
+        // else: still within the debounce window — no state change yet
     } else {
-        // The socket is now empty
-        sd_card_p->state.m_Status |= (STA_NODISK | STA_NOINIT);
-        sd_card_p->state.card_type = SDCARD_NONE;
-        EMSG_PRINTF("No SD card detected!\r\n");
-        return false;
+        // Raw matches committed state — cancel any pending debounce
+        sd_card_p->state.cd_debouncing = false;
     }
+
+    return sd_card_p->state.cd_debounced_present;
 }
 
 void sd_set_drive_prefix(sd_card_t *sd_card_p, size_t phy_drv_num) {
@@ -152,6 +186,11 @@ bool sd_init_driver() {
                     }
                 }
                 gpio_init(sd_card_p->card_detect_gpio);
+                // Seed debounce state from current GPIO level (no debounce
+                // on cold boot — card is already seated or absent)
+                sd_card_p->state.cd_debounced_present =
+                    (gpio_get(sd_card_p->card_detect_gpio) == sd_card_p->card_detected_true);
+                sd_card_p->state.cd_debouncing = false;
             }
 
             switch (sd_card_p->type) {

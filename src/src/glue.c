@@ -107,6 +107,7 @@ DRESULT disk_read(BYTE pdrv,  /* Physical drive number to identify the drive */
     TRACE_PRINTF(">>> %s\n", __FUNCTION__);
     sd_card_t *sd_card_p = sd_get_by_num(pdrv);
     if (!sd_card_p) return RES_PARERR;
+    if (!sd_card_detect(sd_card_p)) return RES_NOTRDY;
     int rc = sd_card_p->read_blocks(sd_card_p, buff, sector, count);
     return sdrc2dresult(rc);
 }
@@ -125,6 +126,7 @@ DRESULT disk_write(BYTE pdrv, /* Physical drive number to identify the drive */
     TRACE_PRINTF(">>> %s\n", __FUNCTION__);
     sd_card_t *sd_card_p = sd_get_by_num(pdrv);
     if (!sd_card_p) return RES_PARERR;
+    if (!sd_card_detect(sd_card_p)) return RES_NOTRDY;
     int rc = sd_card_p->write_blocks(sd_card_p, buff, sector, count);
     return sdrc2dresult(rc);
 }
@@ -142,6 +144,7 @@ DRESULT disk_ioctl(BYTE pdrv, /* Physical drive number (0..) */
     TRACE_PRINTF(">>> %s\n", __FUNCTION__);
     sd_card_t *sd_card_p = sd_get_by_num(pdrv);
     if (!sd_card_p) return RES_PARERR;
+    if (!sd_card_detect(sd_card_p)) return RES_NOTRDY;
     switch (cmd) {
         case GET_SECTOR_COUNT: {  // Retrieves number of available sectors, the
                                   // largest allowable LBA + 1, on the drive

@@ -100,6 +100,11 @@ typedef struct sd_card_state_t {
     uint32_t sectors;       // Assigned dynamically
     uint32_t last_psn;      // Product Serial Number from CID, saved after init
 
+    // Card detect debounce state (used when use_card_detect is true)
+    bool cd_debounced_present; // Last committed (debounced) card-present state
+    bool cd_debouncing;        // A state transition is pending
+    uint32_t cd_debounce_start; // millis() timestamp when raw first diverged
+
     mutex_t mutex;
     FATFS fatfs;
     bool mounted;
