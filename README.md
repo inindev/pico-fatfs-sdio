@@ -14,9 +14,9 @@ This is a trimmed fork of carlk3's [no-OS-FatFS-SD-SDIO-SPI-RPi-Pico](https://gi
 
 ## Changes from upstream
 
-1. **Trimmed** — C++ wrappers, examples, and stubs removed
-2. **FatFs R0.16** — upgraded from R0.15
-3. **RP2350B extended GPIO support** — five patches to the SDIO driver for GPIOs 32-47:
+1. **Trimmed** -- C++ wrappers, examples, and stubs removed
+2. **FatFs R0.16** -- upgraded from R0.15
+3. **RP2350B extended GPIO support** -- five patches to the SDIO driver for GPIOs 32-47:
    - CLK pin calculation accounts for `pio_get_gpio_base()` offset
    - `pio_set_gpio_base()` called during PIO init for GPIO window > 31
    - `input_sync_bypass` uses PIO-relative pin numbers
@@ -25,12 +25,12 @@ This is a trimmed fork of carlk3's [no-OS-FatFS-SD-SDIO-SPI-RPi-Pico](https://gi
 
 These patches are backward-compatible with RP2040.
 
-4. **Card detect debounce and fail-fast** — when a card detect GPIO is
+4. **Card detect debounce and fail-fast** -- when a card detect GPIO is
    configured, the driver now debounces the signal (200 ms default,
    override with `SD_CARD_DETECT_DEBOUNCE_MS`) and tears down the
    interface on removal (SDIO: stops PIO clock and aborts DMA; SPI:
    releases CS).  `disk_read`, `disk_write`, and `disk_ioctl` fail fast
-   via GPIO check—no bus timeout.
+   via GPIO check--no bus timeout.
 
 ## Directory structure
 
@@ -68,7 +68,7 @@ target_link_libraries(your_target pico-fatfs-sd)
 
 You must provide a `hw_config.c` that implements `sd_get_num()` and `sd_get_by_num()`. Set `.type` to `SD_IF_SDIO` or `SD_IF_SPI` depending on your hardware.
 
-### SDIO example (Adafruit Fruit Jam — RP2350B, SDIO on GPIO 34-39)
+### SDIO example (Adafruit Fruit Jam -- RP2350B, SDIO on GPIO 34-39)
 
 ```c
 #include "hw_config.h"

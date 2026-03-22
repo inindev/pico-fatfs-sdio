@@ -43,7 +43,7 @@ void sd_spi_go_low_frequency(sd_card_t *sd_card_p) {
 
 /* 
 After power up, the host starts the clock and sends the initializing sequence on the CMD line. 
-This sequence is a contiguous stream of logical ‘1’s. The sequence length is the maximum of 1msec, 
+This sequence is a contiguous stream of logical '1's. The sequence length is the maximum of 1msec, 
 74 clocks or the supply-ramp-uptime; the additional 10 clocks 
 (over the 64 clocks after what the card should be ready for communication) is
 provided to eliminate power-up synchronization problems. 

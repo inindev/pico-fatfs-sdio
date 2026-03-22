@@ -22,7 +22,7 @@ because a result that cannot be represented by the resulting
 unsigned integer type is reduced modulo the number that is 
 one greater than the largest value that can be represented 
 by the resulting type." 
-    -- ISO/IEC 9899:1999 (E) §6.2.5/9
+    -- ISO/IEC 9899:1999 (E) S6.2.5/9
 
 In other words, a uint32_t will wrap at 0 and UINT_MAX.
 
